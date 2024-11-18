@@ -107,6 +107,9 @@
         <div class="input-group">
             <input type="text" id="messageInput" placeholder="Type a message...">
             <button onclick="sendMessage()">Send</button>
+            <input type="file" id="imageInput" accept="image/*" onchange="sendImage()" style="display:none;">
+            <button onclick="document.getElementById('imageInput').click()">Upload Image</button>
+            <button id="recordButton" onmousedown="startRecording()" onmouseup="stopRecording()">🎤 Hold to Record</button>
         </div>
     </div>
 
@@ -114,17 +117,31 @@
         const chatbox = document.getElementById('chatbox');
         const messageInput = document.getElementById('messageInput');
         const usernameInput = document.getElementById('usernameInput');
-
-        const socket = new WebSocket("ws://localhost:8080/ws");
+        const socket = new WebSocket("ws://localhost:3000/ws");
 
         socket.onmessage = function (event) {
             const data = JSON.parse(event.data);
             const message = document.createElement('div');
-            message.textContent = data.username + ": " + data.message;
             message.classList.add('message');
+
             if (data.username === usernameInput.value) {
                 message.classList.add('user');
             }
+
+            if (data.type === "text") {
+                message.textContent = `${data.username}: ${data.content}`;
+            } else if (data.type === "image") {
+                const img = document.createElement('img');
+                img.src = data.content;
+                img.style.maxWidth = "100%";
+                message.appendChild(img);
+            } else if (data.type === "audio") {
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = data.content;
+                message.appendChild(audio);
+            }
+
             chatbox.appendChild(message);
             chatbox.scrollTop = chatbox.scrollHeight;
         };
@@ -132,17 +149,64 @@
         function sendMessage() {
             const message = messageInput.value;
             const username = usernameInput.value;
-
             if (message !== "" && username !== "") {
                 const msg = {
                     username: username,
-                    message: message
+                    type: "text",
+                    content: message
                 };
                 socket.send(JSON.stringify(msg));
                 messageInput.value = "";
             }
         }
+
+        function sendImage() {
+            const file = document.getElementById('imageInput').files[0];
+            const reader = new FileReader();
+            reader.onloadend = function () {
+                const msg = {
+                    username: usernameInput.value,
+                    type: "image",
+                    content: reader.result
+                };
+                socket.send(JSON.stringify(msg));
+            };
+            if (file) {
+                reader.readAsDataURL(file);
+            }
+        }
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const reader = new FileReader();
+                    reader.onloadend = function () {
+                        const msg = {
+                            username: usernameInput.value,
+                            type: "audio",
+                            content: reader.result
+                        };
+                        socket.send(JSON.stringify(msg));
+                    };
+                    reader.readAsDataURL(audioBlob);
+                    audioChunks = [];
+                };
+            });
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+            }
+        }
     </script>
 </body>
-
 </html>
+

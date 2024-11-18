@@ -12,8 +12,8 @@ func main() {
 
 	go connections.HandleMessages()
 
-	fmt.Println("Server started on :8080")
-	err := http.ListenAndServe(":8080", nil)
+	fmt.Println("Server started on :3000")
+	err := http.ListenAndServe(":3000", nil)
 	if err != nil {
 		panic("Error starting server: " + err.Error())
 	}

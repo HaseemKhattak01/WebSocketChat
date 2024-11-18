@@ -23,11 +23,10 @@ func HomePage(w http.ResponseWriter, r *http.Request) {
 func HandleMessages() {
 	for {
 		msg := <-Broadcast
-
 		for client := range Clients {
 			err := client.WriteJSON(msg)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println("Error sending message:", err)
 				client.Close()
 				delete(Clients, client)
 			}
@@ -36,24 +35,21 @@ func HandleMessages() {
 }
 
 func HandleConnections(w http.ResponseWriter, r *http.Request) {
-
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("WebSocket upgrade error:", err)
 		return
-
 	}
 	defer conn.Close()
 
 	Clients[conn] = true
-
 	for {
 		var msg models.Message
 		err := conn.ReadJSON(&msg)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("Error reading JSON:", err)
 			delete(Clients, conn)
-			return
+			break
 		}
 		Broadcast <- msg
 	}
